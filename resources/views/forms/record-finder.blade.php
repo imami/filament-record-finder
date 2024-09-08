@@ -3,12 +3,19 @@
         :field="$field"
 >
     @php
-        $addAction = $getAction('add');
         $removeAction = $getAction('remove');
         $linkAction = $getAction('link');
         $items = $getState();
+        $multipleChoicesAllowed = $isMultipleChoicesAllowed();
+        $editable = false;
+        $suffixActions = [
+            $getAction('add'),
+        ];
     @endphp
 
+    <x-filament::input.wrapper
+        :suffix-actions="$suffixActions"
+    >
     <div
             x-data="{
                 statePath: '{{ $getStatePath() }}',
@@ -22,36 +29,19 @@
                 },
             }"
             x-on:record-finder-attach-records.window="($event) => handleAttachRecords($event)"
-            class="grid gap-3"
     >
-        <div>
-            <x-filament::grid
-                    :default="$getGridColumns('default')"
-                    :sm="$getGridColumns('sm')"
-                    :md="$getGridColumns('md')"
-                    :lg="$getGridColumns('lg')"
-                    :xl="$getGridColumns('xl')"
-                    :two-xl="$getGridColumns('2xl')"
-                    class="gap-3"
-            >
-                @foreach($items as $uuid => $item)
-                    <div class="rounded-lg bg-white shadow border overflow-hidden">
-                        <div class="flex justify-between p-3 bg-gray-50 border-b">
-                            <span>{{ $removeAction(['item' => $uuid]) }}</span>
+        <div class="fi-rf-items p-1">
+                @forelse($items as $uuid => $item)
+                    <x-filament::input.wrapper
+                        :prefix-actions="[$removeAction(['item' => $uuid])]"
+                    >
+                        <div class="flex px-1 py-2.5">{{ $item['title'] }}</div>
+                    </x-filament::input.wrapper>
 
-                            <span>{{ $linkAction(['item' => $uuid]) }}</span>
-                        </div>
-
-                        <div class="p-3">
-                            <p>{{ $item['title'] }}</p>
-                        </div>
-                    </div>
-                @endforeach
-            </x-filament::grid>
-        </div>
-
-        <div>
-            {{ $addAction }}
+                @empty
+                    <div class="inline-block m-2"></div>
+                @endforelse
         </div>
     </div>
+    </x-filament::input.wrapper>
 </x-dynamic-component>

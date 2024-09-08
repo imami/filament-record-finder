@@ -8,13 +8,10 @@ use Filament\Forms\Components\Actions\Action;
 use Filament\Forms\Components\Concerns\CanGenerateUuids;
 use Filament\Forms\Components\Concerns\HasContainerGridLayout;
 use Filament\Forms\Components\Field;
-use Filament\Forms\Concerns\HasColumns;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Tables\Concerns\InteractsWithTable;
-use Filament\Tables\Contracts\HasTable;
-use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOneOrMany;
@@ -22,9 +19,9 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
-use function Livewire\store;
+use phpDocumentor\Reflection\Types\False_;
 
-class RecordFinder extends Field implements HasForms
+class RecordFinderField extends Field implements HasForms
 {
     use InteractsWithForms, CanGenerateUuids, HasContainerGridLayout;
 
@@ -46,13 +43,15 @@ class RecordFinder extends Field implements HasForms
 
     protected ?Closure $modifyRelationshipQueryUsing = null;
 
+    protected bool | \Closure | null $multiple = true;
+
     protected ?string $recordFinder = null;
 
     protected function setUp(): void
     {
         $this->default([]);
 
-        $this->afterStateHydrated(static function (RecordFinder $component, $state) {
+        $this->afterStateHydrated(static function (RecordFinderField $component, $state) {
             if (is_array($state)) {
                 return;
             }
@@ -61,21 +60,22 @@ class RecordFinder extends Field implements HasForms
         });
 
         $this->registerActions([
-            fn(RecordFinder $component): Action => $component->getAddAction(),
-            fn(RecordFinder $component): Action => $component->getRemoveAction(),
-            fn(RecordFinder $component): Action => $component->getLinkAction(),
+            fn(RecordFinderField $component): Action => $component->getAddAction(),
+            fn(RecordFinderField $component): Action => $component->getRemoveAction(),
+            fn(RecordFinderField $component): Action => $component->getLinkAction(),
         ]);
 
         $this->registerListeners([
             'record-finder::addToState' => [
-                function (RecordFinder $component, $statePath, array $records) {
+                function (RecordFinderField $component, $statePath, array $records) {
                     $relationshipTitleAttribute = $component->getRelationshipTitleAttribute();
 
                     $records = $component->getRelatedModelClass()::query()
                         ->whereIn('id', $records)
+                        ->get()
                         ->pluck($relationshipTitleAttribute, 'id');
 
-                    $items = $this->getState();
+                    $items = $this->isMultipleChoicesAllowed() ? $this->getState() : [];
 
                     foreach ($records as $id => $title) {
                         $items[$component->generateUuid()] = [
@@ -101,19 +101,19 @@ class RecordFinder extends Field implements HasForms
     public function getAddAction(): Action
     {
         return Action::make('add')
-            ->icon('heroicon-o-plus')
+            ->icon('heroicon-o-magnifying-glass-plus')
             ->color('primary')
             ->iconButton()
-            ->modalHeading('Record finder')
-            ->modalContent(function (RecordFinder $component) {
+            ->modalHeading('Record finder' . $this->label)
+            ->modalContent(function (RecordFinderField $component) {
                 $recordFinderComponent = $component->getRecordFinder();
-
                 $componentName = str_replace('\\', '.', $recordFinderComponent);
 
                 return new HtmlString(
                     Blade::render(
-                        string: "@livewire('{$componentName}', ['statePath' => \$statePath, 'ownerRecord' => \$ownerRecord, 'existingRecords' => \$existingRecords, 'recordFinderComponentId' => \$recordFinderComponentId])",
+                        string: "@livewire('{$componentName}', ['multiple' => \$multiple, 'statePath' => \$statePath, 'ownerRecord' => \$ownerRecord, 'existingRecords' => \$existingRecords, 'recordFinderComponentId' => \$recordFinderComponentId])",
                         data: [
+                            'multiple' => $this->isMultipleChoicesAllowed(),
                             'statePath' => $component->getStatePath(),
                             'ownerRecord' => $component->getRecord(),
                             'existingRecords' => collect($component->getState())->pluck('id')->toArray(),
@@ -129,11 +129,12 @@ class RecordFinder extends Field implements HasForms
     public function getRemoveAction(): Action
     {
         return Action::make('remove')
+            ->tooltip(__('filament-record-finder::default.remove'))
             ->icon('heroicon-o-trash')
             ->color('danger')
             ->iconButton()
             ->size('sm')
-            ->action(function (array $arguments, RecordFinder $component) {
+            ->action(function (array $arguments, RecordFinderField $component) {
                 $items = $component->getState();
                 unset($items[$arguments['item']]);
 
@@ -147,15 +148,6 @@ class RecordFinder extends Field implements HasForms
     {
         return Action::make('link')
             ->label($this->linkActionLabel ?? 'Edit')
-            ->url(function (array $arguments, RecordFinder $component) {
-                $uuid = $arguments['item'];
-
-                $state = $component->getState()[$uuid]['id'];
-
-                return $this->evaluate($this->linkActionLink, [
-                    'state' => $state,
-                ]);
-            })
             ->size('sm')
             ->link();
     }
@@ -166,14 +158,14 @@ class RecordFinder extends Field implements HasForms
         $this->relationshipTitleAttribute = $titleAttribute;
         $this->modifyRelationshipQueryUsing = $modifyQueryUsing;
 
-        $this->loadStateFromRelationshipsUsing(static function (RecordFinder $component) {
+        $this->loadStateFromRelationshipsUsing(static function (RecordFinderField $component) {
             $component->clearCachedExistingRecords();
 
             $component->fillFromRelationship();
         });
 
-        $this->saveRelationshipsUsing(static function (RecordFinder $component, Model $record, $state) {
-            if (!is_array($state)) {
+        $this->saveRelationshipsUsing(static function (RecordFinderField $component, Model $record, $state) {
+            if (! is_array($state)) {
                 $state = [];
             }
 
@@ -190,6 +182,10 @@ class RecordFinder extends Field implements HasForms
                     ->update([
                         $relationship->getForeignKeyName() => $record->id,
                     ]);
+            } else if ($relationship instanceof BelongsTo) {
+                $record->update([
+                    $relationship->getForeignKeyName() => $state[0] ?? null
+                ]);
             } else {
                 $relationship->sync($state);
             }
@@ -274,7 +270,7 @@ class RecordFinder extends Field implements HasForms
         return $this->evaluate($this->relationship);
     }
 
-    public function getRelationship(): HasOneOrMany|BelongsToMany|null
+    public function getRelationship(): HasOneOrMany|BelongsToMany|BelongsTo|null
     {
         return $this->getModelInstance()->{$this->getRelationshipName()}();
     }
@@ -303,5 +299,25 @@ class RecordFinder extends Field implements HasForms
     public function getRecordFinder(): string
     {
         return $this->recordFinder;
+    }
+
+    public function isMultipleChoicesAllowed()
+    {
+        if ($this->getRelationship() instanceof BelongsTo)
+            return false;
+
+        return $this->getMultiple();
+    }
+
+    public function multiple(bool $multiple = true): static
+    {
+        $this->multiple = $multiple;
+
+        return $this;
+    }
+    // Get the value of the multiple property in the view
+    public function getMultiple(): bool
+    {
+        return $this->evaluate($this->multiple);
     }
 }

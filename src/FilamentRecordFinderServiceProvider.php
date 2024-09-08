@@ -14,6 +14,7 @@ class FilamentRecordFinderServiceProvider extends ServiceProvider
         $this->loadViewsFrom(__DIR__ . '/../resources/views/forms', 'filament-record-finder');
 
         $this->mergeConfigFrom(__DIR__ . '/../config/filament-record-finder.php', 'filament-record-finder');
+        $this->loadTranslationsFrom(__DIR__ . '/../resources/lang', 'filament-record-finder');
 
         $this->publishes([
             __DIR__ . '/../config/filament-record-finder.php' => config_path('filament-record-finder.php'),

@@ -10,9 +10,9 @@ composer require statview/filament-record-finder
 use App\Models\User;
 use Filament\Tables\Columns;
 use Filament\Tables\Table;
-use Statview\FilamentRecordFinder\RecordFinder;
+use Statview\FilamentRecordFinder\RecordFinderTable;
 
-class RecordFinderDemo extends RecordFinder
+class RecordFinderDemo extends RecordFinderTable
 {
     public function table(Table $table)
     {
@@ -31,11 +31,12 @@ class RecordFinderDemo extends RecordFinder
 ```
 
 ## Usage
+
 ```php
 use Filament\Tables\Columns\TextColumn;
-use Statview\FilamentRecordFinder\Forms\RecordFinder;
+use Statview\FilamentRecordFinder\Forms\RecordFinderField;
 
-RecordFinder::make('pages')
+RecordFinderField::make('pages')
     ->label('Subpages')
     ->relation('pages', 'title')
     ->grid()
