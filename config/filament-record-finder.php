@@ -1,5 +1,5 @@
 <?php
 
 return [
-    'path' => app_path('Filament/RecordFinders'),
+    'path' => base_path('packages/larapep/pdm/src/Filament/RecordFinders'),
 ];
